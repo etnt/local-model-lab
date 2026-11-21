@@ -18,12 +18,18 @@ http.createServer(async (req, res) => {
         let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 100000) throw new Error('Request too large'); }
         const data = JSON.parse(raw);
         if (typeof data.model !== 'string' || !data.model || typeof data.prompt !== 'string' || !data.prompt.trim()) throw new Error('Model and prompt are required');
-        body = JSON.stringify({ model: data.model, prompt: data.prompt, stream: false });
+        body = JSON.stringify({ model: data.model, prompt: data.prompt, stream: true });
       }
       const response = await fetch(new URL(req.method === 'GET' ? '/api/tags' : '/api/generate', ollama), { method: req.method, headers: body ? { 'Content-Type': 'application/json' } : {}, body });
-      const data = await response.text();
-      res.writeHead(response.status, { 'Content-Type': 'application/json' }); res.end(data);
-    } catch (error) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `Could not reach Ollama: ${error.message}` })); }
+      res.writeHead(response.status, { 'Content-Type': response.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-cache' });
+      if (response.body) {
+        for await (const chunk of response.body) { if (res.destroyed) break; res.write(chunk); }
+      }
+      res.end();
+    } catch (error) {
+      if (res.headersSent) { res.destroy(error); return; }
+      res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `Ollama request failed: ${error.cause?.message || error.message}` }));
+    }
     return;
   }
   res.writeHead(404); res.end('Not found');
