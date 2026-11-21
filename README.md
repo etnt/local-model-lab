@@ -1,0 +1,11 @@
+# Local Model Lab
+
+Compare locally installed Ollama models with the same prompt in a browser. Responses are requested concurrently and each card shows wall-clock time from request to completed response, including communication overhead. Concurrent runs share your machine's resources, so timings depend on load and are not isolated benchmarks.
+
+## Getting started
+
+1. Install and start [Ollama](https://ollama.com/) and pull at least one model, for example `ollama pull llama3.2`.
+2. Install Node.js 18 or newer, then run `npm start`.
+3. Open http://127.0.0.1:3000, select models, choose or edit a prompt, and run the comparison.
+
+Use the refresh button after installing additional models. The server listens only on localhost. Set `PORT` to change the UI port or `OLLAMA_URL` to point to another Ollama server (default `http://127.0.0.1:11434`). No npm dependencies are required.
