@@ -12,7 +12,7 @@ http.createServer(async (req, res) => {
     const [file, type] = files[url.pathname];
     res.writeHead(200, { 'Content-Type': type }); fs.createReadStream(path.join(__dirname, 'public', file)).pipe(res); return;
   }
-  if ((req.method === 'GET' && url.pathname === '/api/models') || (req.method === 'POST' && (url.pathname === '/api/generate' || url.pathname === '/api/tool-test'))) {
+  if ((req.method === 'GET' && (url.pathname === '/api/models' || url.pathname === '/api/running')) || (req.method === 'POST' && (url.pathname === '/api/generate' || url.pathname === '/api/tool-test'))) {
     try {
       let body, data;
       if (req.method === 'POST') {
@@ -26,7 +26,7 @@ http.createServer(async (req, res) => {
         await runToolTest(res, data);
         return;
       }
-      const response = await fetch(new URL(req.method === 'GET' ? '/api/tags' : '/api/generate', ollama), { method: req.method, headers: body ? { 'Content-Type': 'application/json' } : {}, body });
+      const response = await fetch(new URL(req.method === 'GET' ? (url.pathname === '/api/running' ? '/api/ps' : '/api/tags') : '/api/generate', ollama), { method: req.method, headers: body ? { 'Content-Type': 'application/json' } : {}, body });
       res.writeHead(response.status, { 'Content-Type': response.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-cache' });
       if (response.body) {
         for await (const chunk of response.body) { if (res.destroyed) break; res.write(chunk); }

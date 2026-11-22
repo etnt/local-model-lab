@@ -11,14 +11,30 @@ let selected = new Set(), running = false;
 const promptInput = $('prompt');
 presets.forEach((preset, index) => { const button = document.createElement('button'); button.className = 'preset'; button.textContent = preset.name; button.onclick = () => { promptInput.value = preset.prompt; $('enable-tools').checked = !!preset.tools; document.querySelectorAll('.preset').forEach(b => b.classList.remove('active')); button.classList.add('active'); }; $('presets').append(button); if (index === 2) button.click(); });
 promptInput.addEventListener('input', () => document.querySelectorAll('.preset').forEach(b => b.classList.remove('active')));
+function formatBytes(bytes) { return typeof bytes === 'number' && Number.isFinite(bytes) && bytes >= 0 ? `${(bytes / 1e9).toFixed(1)} GB` : 'Unavailable'; }
 async function loadModels() {
   $('refresh').disabled = true; $('models').textContent = 'Connecting to Ollama…';
   try {
     const response = await fetch('/api/models'); const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Could not load models');
+    let runningModels = null;
+    try { const status = await fetch('/api/running'); if (status.ok) { const payload = await status.json(); if (Array.isArray(payload.models)) runningModels = payload.models; } } catch (_) { /* Model listing still works if runtime status is unavailable. */ }
     const models = data.models || []; selected = new Set([...selected].filter(name => models.some(m => m.name === name)));
     $('models').replaceChildren();
     if (!models.length) $('models').textContent = 'No models found. Pull a model with Ollama, then refresh.';
-    models.forEach(model => { const label = document.createElement('label'); label.className = 'model'; const input = document.createElement('input'); input.type = 'checkbox'; input.checked = selected.has(model.name); input.disabled = running; input.onchange = () => { input.checked ? selected.add(model.name) : selected.delete(model.name); }; const name = document.createElement('span'); name.textContent = model.name; label.append(input, name); $('models').append(label); });
+    models.forEach(model => {
+      const label = document.createElement('label'); label.className = 'model';
+      const input = document.createElement('input'); input.type = 'checkbox'; input.checked = selected.has(model.name); input.disabled = running;
+      input.onchange = () => { input.checked ? selected.add(model.name) : selected.delete(model.name); };
+      const info = document.createElement('span'); info.className = 'model-info';
+      const name = document.createElement('span'); name.className = 'model-name'; name.textContent = model.name;
+      const meta = document.createElement('span'); meta.className = 'model-meta';
+      const details = model.details || {};
+      meta.textContent = [`Disk ${formatBytes(model.size)}`, details.parameter_size && `${details.parameter_size} parameters`, details.quantization_level].filter(Boolean).join(' · ');
+      const runtime = document.createElement('span'); runtime.className = 'model-runtime';
+      const loaded = runningModels?.find(item => item.name === model.name || item.model === model.name);
+      runtime.textContent = runningModels === null ? 'Runtime status unavailable' : loaded ? `Loaded: ${formatBytes(loaded.size)} · GPU: ${formatBytes(loaded.size_vram)}${loaded.context_length ? ` · Context: ${loaded.context_length.toLocaleString()}` : ''}` : 'Not currently loaded';
+      info.append(name, meta, runtime); label.append(input, info); $('models').append(label);
+    });
   } catch (error) { $('models').textContent = `Unable to connect. Make sure Ollama is running, then refresh. ${error.message}`; } finally { $('refresh').disabled = false; }
 }
 $('refresh').onclick = loadModels;
@@ -59,5 +75,6 @@ $('run').onclick = async () => {
     } catch (error) { output.textContent = (output.textContent && !['Thinking…', 'Waiting for response…'].includes(output.textContent) ? output.textContent + '\n\n' : '') + `Error: ${error.message}`; output.classList.add('error'); time.textContent = 'FAILED'; } finally { output.classList.remove('loading'); }
   }));
   running = false; $('run').disabled = false; $('run').firstChild.textContent = 'Run comparison '; document.querySelectorAll('.model input').forEach(i => i.disabled = false);
+  await loadModels();
 };
 loadModels();

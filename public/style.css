@@ -6,3 +6,5 @@
 .thinking-option{display:flex;align-items:flex-start;gap:10px;color:var(--text);font-size:13px;margin:15px 0 3px;cursor:pointer}.thinking-option input{accent-color:var(--acid);margin:2px 0}.thinking-option small{display:block;color:var(--muted);font-size:11px;margin-top:4px}
 
 .tool-log{padding:14px 18px;border-bottom:1px solid var(--line);color:var(--acid);font:11px/1.6 "Space Mono",monospace;white-space:pre-wrap;overflow-wrap:anywhere}.tool-log[hidden]{display:none}
+
+.model{align-items:flex-start}.model input{margin-top:3px;flex-shrink:0}.model-info{display:flex;flex-direction:column;gap:4px;min-width:0}.model-name{color:var(--text)}.model-meta,.model-runtime{color:var(--muted);font-size:11px;line-height:1.4}.model-runtime{color:#b6c7a5}.models{max-height:320px}

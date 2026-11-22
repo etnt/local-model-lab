@@ -13,3 +13,5 @@ Use the refresh button after installing additional models. The optional **Turn o
 ## Tool-calling comparisons
 
 Select a Tool preset or enable **sample tools** with a custom prompt. Models can call a local addition tool and a temperature lookup using fixed sample data (not live weather). Each card shows calls, arguments, and results, including when no call was made. The tool mode uses Ollama chat and displays each completed model turn; ordinary responses continue to stream token by token. Some models do not support tool calling. Runs are limited to four model turns and ten calls per turn.
+
+The model list shows Ollama’s installed size on disk, parameter count and quantization when available. For loaded models, it also shows Ollama’s reported loaded size, GPU allocation and active context length. Runtime figures are snapshots refreshed with the model list and after a comparison; unloaded models have no runtime figures. Disk size is not the same as memory usage, and reported allocations are not a complete measure of process or system memory.
