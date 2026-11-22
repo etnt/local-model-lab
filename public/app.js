@@ -45,9 +45,19 @@ $('run').onclick = async () => {
   const prompt = promptInput.value, models = [...selected], disableThinking = $('disable-thinking').checked, useTools = $('enable-tools').checked; $('count').textContent = `${models.length} ${models.length === 1 ? 'MODEL' : 'MODELS'}`; $('results').replaceChildren();
   await Promise.all(models.map(async (model, index) => {
     const card = document.createElement('article'); card.className = 'card';
-    const head = document.createElement('div'); head.className = 'card-head'; const title = document.createElement('div'); const number = document.createElement('span'); number.className = 'card-number'; number.textContent = `MODEL ${String(index + 1).padStart(2, '0')}`; const name = document.createElement('h3'); name.textContent = model; title.append(number, name); const time = document.createElement('span'); time.className = 'time'; time.textContent = '●  RUNNING'; head.append(title, time); const output = document.createElement('div'); output.className = 'output loading'; output.textContent = 'Thinking…'; const reasoning = document.createElement('details'); reasoning.className = 'reasoning'; reasoning.open = true; reasoning.hidden = true; const summary = document.createElement('summary'); summary.textContent = 'Thinking'; const reasoningText = document.createElement('div'); reasoningText.className = 'reasoning-text'; reasoning.append(summary, reasoningText); const toolLog = document.createElement('div'); toolLog.className = 'tool-log'; toolLog.hidden = !useTools; if (useTools) toolLog.textContent = 'Waiting for tool calls…'; card.append(head, toolLog, reasoning, output); $('results').append(card);
-    const start = performance.now();
+    const head = document.createElement('div'); head.className = 'card-head'; const title = document.createElement('div'); const number = document.createElement('span'); number.className = 'card-number'; number.textContent = `MODEL ${String(index + 1).padStart(2, '0')}`; const name = document.createElement('h3'); name.textContent = model; title.append(number, name); const time = document.createElement('span'); time.className = 'time'; time.textContent = '●  LOADING'; head.append(title, time); const output = document.createElement('div'); output.className = 'output loading'; output.textContent = 'Loading model…'; const reasoning = document.createElement('details'); reasoning.className = 'reasoning'; reasoning.open = true; reasoning.hidden = true; const summary = document.createElement('summary'); summary.textContent = 'Thinking'; const reasoningText = document.createElement('div'); reasoningText.className = 'reasoning-text'; reasoning.append(summary, reasoningText); const toolLog = document.createElement('div'); toolLog.className = 'tool-log'; toolLog.hidden = !useTools; if (useTools) toolLog.textContent = 'Waiting for tool calls…'; card.append(head, toolLog, reasoning, output); $('results').append(card);
+    let timer;
     try {
+      const loadStart = performance.now();
+      const loadResponse = await fetch('/api/load', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model }) });
+      if (!loadResponse.ok) { const data = await loadResponse.json(); throw new Error(`Loading failed: ${data.error || 'Could not load model'}`); }
+      await loadResponse.json();
+      const loadSeconds = ((performance.now() - loadStart) / 1000).toFixed(2);
+      const loadInfo = document.createElement('div'); loadInfo.className = 'load-time'; loadInfo.textContent = `Load: ${loadSeconds} s`; title.append(loadInfo);
+      const start = performance.now();
+      const updateTime = () => { time.textContent = `● RUNNING ${((performance.now() - start) / 1000).toFixed(1)} s`; };
+      updateTime(); timer = setInterval(updateTime, 250);
+      output.textContent = 'Waiting for response…';
       const response = await fetch(useTools ? '/api/tool-test' : '/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, prompt, ...(disableThinking ? { think: false } : {}) }) });
       if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Generation failed'); }
       const reader = response.body.getReader(), decoder = new TextDecoder();
@@ -71,8 +81,8 @@ $('run').onclick = async () => {
       if (buffer.trim()) handleLine(buffer);
       if (!done) throw new Error('Ollama ended the response before generation completed.');
       output.textContent = answer || '(Empty response)';
-      time.textContent = `${((performance.now() - start) / 1000).toFixed(2)} s`;
-    } catch (error) { output.textContent = (output.textContent && !['Thinking…', 'Waiting for response…'].includes(output.textContent) ? output.textContent + '\n\n' : '') + `Error: ${error.message}`; output.classList.add('error'); time.textContent = 'FAILED'; } finally { output.classList.remove('loading'); }
+      clearInterval(timer); time.textContent = `RUN ${((performance.now() - start) / 1000).toFixed(2)} s`;
+    } catch (error) { output.textContent = (output.textContent && !['Loading model…', 'Thinking…', 'Waiting for response…'].includes(output.textContent) ? output.textContent + '\n\n' : '') + `Error: ${error.message}`; output.classList.add('error'); time.textContent = 'FAILED'; } finally { clearInterval(timer); output.classList.remove('loading'); }
   }));
   running = false; $('run').disabled = false; $('run').firstChild.textContent = 'Run comparison '; document.querySelectorAll('.model input').forEach(i => i.disabled = false);
   await loadModels();

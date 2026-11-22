@@ -12,15 +12,16 @@ http.createServer(async (req, res) => {
     const [file, type] = files[url.pathname];
     res.writeHead(200, { 'Content-Type': type }); fs.createReadStream(path.join(__dirname, 'public', file)).pipe(res); return;
   }
-  if ((req.method === 'GET' && (url.pathname === '/api/models' || url.pathname === '/api/running')) || (req.method === 'POST' && (url.pathname === '/api/generate' || url.pathname === '/api/tool-test'))) {
+  if ((req.method === 'GET' && (url.pathname === '/api/models' || url.pathname === '/api/running')) || (req.method === 'POST' && (url.pathname === '/api/generate' || url.pathname === '/api/tool-test' || url.pathname === '/api/load'))) {
     try {
       let body, data;
       if (req.method === 'POST') {
         let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 100000) throw new Error('Request too large'); }
         data = JSON.parse(raw);
-        if (typeof data.model !== 'string' || !data.model || typeof data.prompt !== 'string' || !data.prompt.trim()) throw new Error('Model and prompt are required');
+        if (typeof data.model !== 'string' || !data.model.trim()) throw new Error('Model is required');
+        if (url.pathname !== '/api/load' && (typeof data.prompt !== 'string' || !data.prompt.trim())) throw new Error('Prompt is required');
         if (data.think !== undefined && typeof data.think !== 'boolean') throw new Error('Think must be a boolean');
-        body = JSON.stringify({ model: data.model, prompt: data.prompt, stream: true, ...(data.think !== undefined ? { think: data.think } : {}) });
+        body = JSON.stringify(url.pathname === '/api/load' ? { model: data.model, stream: false } : { model: data.model, prompt: data.prompt, stream: true, ...(data.think !== undefined ? { think: data.think } : {}) });
       }
       if (url.pathname === '/api/tool-test') {
         await runToolTest(res, data);

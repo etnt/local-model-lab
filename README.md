@@ -1,6 +1,6 @@
 # Local Model Lab
 
-Compare locally installed Ollama models with the same prompt in a browser. Responses are requested concurrently and streamed into each card. For reasoning models, the card streams thinking in a separate section, which collapses when the answer begins. Each card shows wall-clock time from request to completed response, including communication overhead. Concurrent runs share your machine's resources, so timings depend on load and are not isolated benchmarks.
+Compare locally installed Ollama models with the same prompt in a browser. Responses are requested concurrently and streamed into each card. For reasoning models, the card streams thinking in a separate section, which collapses when the answer begins. Each card first loads the model, then shows a separate wall-clock run time from task request to completed response, including communication overhead and any queuing. The load time is also shown and may include queueing or be short for an already loaded model. If Ollama unloads a model between loading and its task (for example under memory pressure), the run time can still include a reload. Concurrent runs share your machine's resources, so timings depend on load and are not isolated benchmarks.
 
 ## Getting started
 
