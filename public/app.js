@@ -1,4 +1,6 @@
 const presets = [
+  { name: 'Tool: add', prompt: 'Use the add_numbers tool to calculate 173 plus 289.' , tools: true },
+  { name: 'Tool: lookup', prompt: 'Use the lookup_temperature tool to find the sample temperature in Stockholm.' , tools: true },
   { name: 'Explain simply', prompt: 'Explain how a neural network learns, using an analogy a 12-year-old would understand.' },
   { name: 'Creative writing', prompt: 'Write a short story about a robot discovering a garden for the first time.' },
   { name: 'Problem solving', prompt: 'How would you prioritize a busy week with competing deadlines? Give a practical step-by-step approach.' },
@@ -7,7 +9,7 @@ const presets = [
 const $ = id => document.getElementById(id);
 let selected = new Set(), running = false;
 const promptInput = $('prompt');
-presets.forEach((preset, index) => { const button = document.createElement('button'); button.className = 'preset'; button.textContent = preset.name; button.onclick = () => { promptInput.value = preset.prompt; document.querySelectorAll('.preset').forEach(b => b.classList.remove('active')); button.classList.add('active'); }; $('presets').append(button); if (!index) button.click(); });
+presets.forEach((preset, index) => { const button = document.createElement('button'); button.className = 'preset'; button.textContent = preset.name; button.onclick = () => { promptInput.value = preset.prompt; $('enable-tools').checked = !!preset.tools; document.querySelectorAll('.preset').forEach(b => b.classList.remove('active')); button.classList.add('active'); }; $('presets').append(button); if (index === 2) button.click(); });
 promptInput.addEventListener('input', () => document.querySelectorAll('.preset').forEach(b => b.classList.remove('active')));
 async function loadModels() {
   $('refresh').disabled = true; $('models').textContent = 'Connecting to Ollama…';
@@ -24,24 +26,25 @@ $('run').onclick = async () => {
   if (!selected.size) { alert('Select at least one model.'); return; }
   if (!promptInput.value.trim()) { promptInput.focus(); return; }
   running = true; $('run').disabled = true; $('run').firstChild.textContent = 'Running comparison '; document.querySelectorAll('.model input').forEach(i => i.disabled = true);
-  const prompt = promptInput.value, models = [...selected]; $('count').textContent = `${models.length} ${models.length === 1 ? 'MODEL' : 'MODELS'}`; $('results').replaceChildren();
+  const prompt = promptInput.value, models = [...selected], disableThinking = $('disable-thinking').checked, useTools = $('enable-tools').checked; $('count').textContent = `${models.length} ${models.length === 1 ? 'MODEL' : 'MODELS'}`; $('results').replaceChildren();
   await Promise.all(models.map(async (model, index) => {
     const card = document.createElement('article'); card.className = 'card';
-    const head = document.createElement('div'); head.className = 'card-head'; const title = document.createElement('div'); const number = document.createElement('span'); number.className = 'card-number'; number.textContent = `MODEL ${String(index + 1).padStart(2, '0')}`; const name = document.createElement('h3'); name.textContent = model; title.append(number, name); const time = document.createElement('span'); time.className = 'time'; time.textContent = '●  RUNNING'; head.append(title, time); const output = document.createElement('div'); output.className = 'output loading'; output.textContent = 'Thinking…'; const reasoning = document.createElement('details'); reasoning.className = 'reasoning'; reasoning.open = true; reasoning.hidden = true; const summary = document.createElement('summary'); summary.textContent = 'Thinking'; const reasoningText = document.createElement('div'); reasoningText.className = 'reasoning-text'; reasoning.append(summary, reasoningText); card.append(head, reasoning, output); $('results').append(card);
+    const head = document.createElement('div'); head.className = 'card-head'; const title = document.createElement('div'); const number = document.createElement('span'); number.className = 'card-number'; number.textContent = `MODEL ${String(index + 1).padStart(2, '0')}`; const name = document.createElement('h3'); name.textContent = model; title.append(number, name); const time = document.createElement('span'); time.className = 'time'; time.textContent = '●  RUNNING'; head.append(title, time); const output = document.createElement('div'); output.className = 'output loading'; output.textContent = 'Thinking…'; const reasoning = document.createElement('details'); reasoning.className = 'reasoning'; reasoning.open = true; reasoning.hidden = true; const summary = document.createElement('summary'); summary.textContent = 'Thinking'; const reasoningText = document.createElement('div'); reasoningText.className = 'reasoning-text'; reasoning.append(summary, reasoningText); const toolLog = document.createElement('div'); toolLog.className = 'tool-log'; toolLog.hidden = !useTools; if (useTools) toolLog.textContent = 'Waiting for tool calls…'; card.append(head, toolLog, reasoning, output); $('results').append(card);
     const start = performance.now();
     try {
-      const response = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, prompt }) });
+      const response = await fetch(useTools ? '/api/tool-test' : '/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model, prompt, ...(disableThinking ? { think: false } : {}) }) });
       if (!response.ok) { const data = await response.json(); throw new Error(data.error || 'Generation failed'); }
       const reader = response.body.getReader(), decoder = new TextDecoder();
-      let buffer = '', answer = '', thinking = '', done = false;
+      let buffer = '', answer = '', thinking = '', done = false, toolCalls = 0;
       const handleLine = line => {
         if (!line.trim()) return;
         const data = JSON.parse(line);
         if (data.error) throw new Error(data.error);
+        if (data.tool_call) { if (!toolCalls++) toolLog.textContent = ''; const line = document.createElement('div'); line.textContent = `${data.tool_call.name}(${JSON.stringify(data.tool_call.arguments)}) → ${data.tool_call.result}`; toolLog.append(line); }
         if (data.thinking) { const follow = reasoningText.scrollHeight - reasoningText.scrollTop - reasoningText.clientHeight < 30; thinking += data.thinking; reasoning.hidden = false; reasoningText.textContent = thinking; if (follow) reasoningText.scrollTop = reasoningText.scrollHeight; }
         if (data.response) { if (!answer && thinking) reasoning.open = false; answer += data.response; output.classList.remove('loading'); }
         output.textContent = answer || (thinking ? 'Thinking…' : 'Waiting for response…');
-        if (data.done) { done = true; summary.textContent = 'Thinking complete'; }
+        if (data.done) { done = true; summary.textContent = 'Thinking complete'; if (useTools && !toolCalls) toolLog.textContent = 'No tool calls made'; }
       };
       while (true) {
         const chunk = await reader.read();
